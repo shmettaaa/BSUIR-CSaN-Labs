@@ -1,0 +1,67 @@
+﻿<Window x:Class="CSaN_Lab1.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Сканер локальной сети" 
+        Height="620" Width="820"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid Margin="24">
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Сканер локальной сети"
+                   FontSize="26"
+                   FontWeight="Bold"
+                   Foreground="#0F172A"
+                   HorizontalAlignment="Left"
+                   Margin="0,0,0,20" />
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,24">
+            <Button x:Name="ScanButton"
+                    Content="Начать сканирование"
+                    Style="{StaticResource NiceButtonStyle}"
+                    Click="ScanButton_Click" />
+
+            <ProgressBar x:Name="ScanProgress"
+                         Width="180" Height="20"
+                         Margin="20,0,0,0"
+                         Visibility="Collapsed"
+                         IsIndeterminate="True" />
+
+            <TextBlock x:Name="StatusText"
+                       Style="{StaticResource StatusTextStyle}"
+                       Text="Готов к работе" />
+        </StackPanel>
+
+        <DataGrid Grid.Row="2" x:Name="DevicesGrid" Margin="0,0,0,20">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="IP-адрес"   Binding="{Binding IpAddress}"  Width="220" />
+                <DataGridTextColumn Header="MAC-адрес"  Binding="{Binding MacAddress}" Width="220" />
+                <DataGridTextColumn Header="Имя хоста"  Binding="{Binding HostName}"   Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Left">
+            <TextBlock Text="Мой компьютер: "
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       Foreground="#333" />
+            <TextBlock x:Name="MyComputerInfoText"
+                       VerticalAlignment="Center"
+                       Margin="12,0,0,0"
+                       Foreground="#555" />
+            <Button Content="Обновить"
+                    Style="{StaticResource NiceButtonStyle}"
+                    Width="140" Height="36"
+                    Margin="24,0,0,0"
+                    Click="RefreshMyInfo_Click" />
+        </StackPanel>
+
+    </Grid>
+</Window>
