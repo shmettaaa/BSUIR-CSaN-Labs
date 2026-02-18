@@ -22,9 +22,12 @@ namespace CSaN_Lab1
             {
                 NetworkInterface nic = allInterfaces[i];
 
-                if (nic.OperationalStatus != OperationalStatus.Up) continue;
-                if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
-                if (!nic.Supports(NetworkInterfaceComponent.IPv4)) continue;
+                if (nic.OperationalStatus != OperationalStatus.Up) 
+                    continue;
+                if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback) 
+                    continue;
+                if (!nic.Supports(NetworkInterfaceComponent.IPv4)) 
+                    continue;
 
                 IPInterfaceProperties ipProps = nic.GetIPProperties();
 
@@ -64,7 +67,7 @@ namespace CSaN_Lab1
                 macString += macBytes[i].ToString("X2");
             }
 
-            string hostName = Environment.MachineName;
+            string hostName = Dns.GetHostEntry("127.0.0.1").HostName;
 
             return new NetworkDevice
             {
@@ -76,27 +79,23 @@ namespace CSaN_Lab1
 
         public async Task<List<NetworkDevice>> ScanAllLocalNetworksAsync()
         {
-            List<NetworkDevice> devices = new List<NetworkDevice>();
-
-            NetworkDevice localComputer = GetLocalComputerInfo();
+            var devices = new List<NetworkDevice>();
+            var localComputer = GetLocalComputerInfo();
             string localIp = localComputer.IpAddress;
 
-            NetworkInterface[] allInterfaces = NetworkInterface.GetAllNetworkInterfaces();
+            var allIps = new List<IPAddress>();
 
-            foreach (NetworkInterface nic in allInterfaces)
+            foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
             {
                 if (nic.OperationalStatus != OperationalStatus.Up)
                     continue;
-
                 if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback)
                     continue;
-
                 if (!nic.Supports(NetworkInterfaceComponent.IPv4))
                     continue;
 
                 IPInterfaceProperties ipProps = nic.GetIPProperties();
                 UnicastIPAddressInformation ipv4 = null;
-
                 foreach (UnicastIPAddressInformation addr in ipProps.UnicastAddresses)
                 {
                     if (addr.Address.AddressFamily == AddressFamily.InterNetwork)
@@ -105,9 +104,7 @@ namespace CSaN_Lab1
                         break;
                     }
                 }
-
-                if (ipv4 == null)
-                    continue;
+                if (ipv4 == null) continue;
 
                 IPAddress myIp = ipv4.Address;
                 IPAddress mask = ipv4.IPv4Mask;
@@ -117,83 +114,45 @@ namespace CSaN_Lab1
 
                 List<IPAddress> ipRange = GetIpRange(networkAddress, broadcastAddress);
 
-                List<Task<NetworkDevice>> pingTasks = new List<Task<NetworkDevice>>();
-
-                const int MAX_CONCURRENT = 30;
-                SemaphoreSlim semaphore = new SemaphoreSlim(MAX_CONCURRENT, MAX_CONCURRENT);
-
-                foreach (IPAddress currentIp in ipRange)
+                foreach (IPAddress ip in ipRange)
                 {
-                    if (currentIp.ToString() == localIp)
-                        continue;
-
-                    await semaphore.WaitAsync();
-
-                    Task<NetworkDevice> task = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            NetworkDevice device = await CheckOneIpAsync(currentIp);
-                            return device;
-                        }
-                        finally
-                        {
-                            semaphore.Release();
-                        }
-                    });
-
-                    pingTasks.Add(task);
-                }
-
-                NetworkDevice[] results = await Task.WhenAll(pingTasks);
-
-                foreach (NetworkDevice device in results)
-                {
-                    if (device != null)
-                    {
-                        devices.Add(device);
-                    }
+                    if (ip.ToString() != localIp)
+                        allIps.Add(ip);
                 }
             }
+            const int MAX_CONCURRENT = 30;
+            var semaphore = new SemaphoreSlim(MAX_CONCURRENT, MAX_CONCURRENT);
+            var tasks = new List<Task<NetworkDevice>>();
 
-            List<NetworkDevice> result = new List<NetworkDevice>();
-            List<string> alreadyAdded = new List<string>();
-
-            foreach (NetworkDevice dev in devices)
+            foreach (IPAddress ip in allIps)
             {
-                bool found = false;
-                foreach (string addedIp in alreadyAdded)
-                {
-                    if (addedIp == dev.IpAddress)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                {
-                    result.Add(dev);
-                    alreadyAdded.Add(dev.IpAddress);
-                }
+                tasks.Add(CheckOneIpWithSemaphoreAsync(ip, semaphore));
             }
 
-            for (int i = 0; i < result.Count - 1; i++)
-            {
-                for (int j = i + 1; j < result.Count; j++)
-                {
-                    IPAddress ip1 = IPAddress.Parse(result[i].IpAddress);
-                    IPAddress ip2 = IPAddress.Parse(result[j].IpAddress);
+            NetworkDevice[] results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
-                    if (CompareIp(ip1, ip2) > 0)
-                    {
-                        NetworkDevice temp = result[i];
-                        result[i] = result[j];
-                        result[j] = temp;
-                    }
+            foreach (var device in results)
+            {
+                if (device != null)
+                {
+                    devices.Add(device);
                 }
             }
 
             return devices;
+        }
+
+        private async Task<NetworkDevice> CheckOneIpWithSemaphoreAsync(IPAddress ip, SemaphoreSlim semaphore)
+        {
+            await semaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                return await CheckOneIpAsync(ip).ConfigureAwait(false);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
         }
 
         private async Task<NetworkDevice> CheckOneIpAsync(IPAddress ip)
@@ -318,16 +277,5 @@ namespace CSaN_Lab1
             return range;
         }
 
-        private int CompareIp(IPAddress a, IPAddress b)
-        {
-            byte[] aBytes = a.GetAddressBytes();
-            byte[] bBytes = b.GetAddressBytes();
-            for (int i = 0; i < 4; i++)
-            {
-                if (aBytes[i] < bBytes[i]) return -1;
-                if (aBytes[i] > bBytes[i]) return 1;
-            }
-            return 0;
-        }
     }
 }
