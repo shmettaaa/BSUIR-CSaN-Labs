@@ -1,45 +1,80 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace CSaN_Lab2.Logic
 {
-    public class FileTransfer
+    public static class FileTransfer
     {
-        private const int BufferSize = 4096; 
+        private const string ReceivedFolder = "ReceivedFiles";
 
-        
-        public void SendFile(IClientConnection connection, string filePath)
+        static FileTransfer()
         {
-            using (FileStream fileStream = File.OpenRead(filePath))
-            {
-                byte[] sizeBytes = BitConverter.GetBytes(fileStream.Length);
-                connection.Send(sizeBytes);
-
-                byte[] buffer = new byte[BufferSize];
-                int bytesRead;
-                while ((bytesRead = fileStream.Read(buffer, 0, BufferSize)) > 0)
-                {
-                    connection.Send(buffer.AsSpan(0, bytesRead).ToArray());
-                }
-            }
+            Directory.CreateDirectory(ReceivedFolder);
         }
 
-        public void ReceiveFile(IClientConnection connection, string savePath)
+        public static async Task SendFileAsync(NetworkStream stream, string filePath, CancellationToken ct = default)
         {
-            using (FileStream fileStream = File.OpenWrite(savePath))
-            {
-               
-                byte[] sizeBytes = connection.Receive();
-                long fileSize = BitConverter.ToInt64(sizeBytes, 0);
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException("Файл не найден", filePath);
 
-                byte[] buffer = new byte[BufferSize];
-                long remaining = fileSize;
-                while (remaining > 0)
-                {
-                    int toRead = (int)Math.Min(BufferSize, remaining);
-                    byte[] received = connection.Receive();
-                    fileStream.Write(received, 0, toRead);
-                    remaining -= toRead;
-                }
+            string fileName = Path.GetFileName(filePath);
+            byte[] fileBytes = await File.ReadAllBytesAsync(filePath, ct);
+
+            byte[] nameBytes = Encoding.UTF8.GetBytes(fileName);
+            byte[] sizeBytes = BitConverter.GetBytes(fileBytes.Length);
+
+            await stream.WriteAsync(new byte[] { 2 }, 0, 1, ct);
+            await stream.WriteAsync(BitConverter.GetBytes(nameBytes.Length), 0, 4, ct);
+            await stream.WriteAsync(nameBytes, 0, nameBytes.Length, ct);
+            await stream.WriteAsync(sizeBytes, 0, sizeBytes.Length, ct);
+            await stream.WriteAsync(fileBytes, 0, fileBytes.Length, ct);
+            await stream.FlushAsync(ct);
+        }
+
+        public static async Task<string> ReceiveFileAsync(NetworkStream stream, CancellationToken ct = default)
+        {
+            byte[] nameLenBytes = new byte[4];
+            await ReadExactAsync(stream, nameLenBytes, ct);
+            int nameLen = BitConverter.ToInt32(nameLenBytes);
+
+            byte[] nameBytes = new byte[nameLen];
+            await ReadExactAsync(stream, nameBytes, ct);
+            string fileName = Encoding.UTF8.GetString(nameBytes);
+
+            byte[] sizeBytes = new byte[4];
+            await ReadExactAsync(stream, sizeBytes, ct);
+            int fileSize = BitConverter.ToInt32(sizeBytes);
+
+            byte[] fileBytes = new byte[fileSize];
+            await ReadExactAsync(stream, fileBytes, ct);
+
+            string savePath = Path.Combine(ReceivedFolder, fileName);
+            if (File.Exists(savePath))
+            {
+                string ext = Path.GetExtension(fileName);
+                string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                savePath = Path.Combine(ReceivedFolder, $"{nameWithoutExt}_{DateTime.Now:yyyyMMdd_HHmmss}{ext}");
+            }
+
+            await File.WriteAllBytesAsync(savePath, fileBytes, ct);
+
+            return savePath;
+        }
+
+        private static async Task ReadExactAsync(NetworkStream stream, byte[] buffer, CancellationToken ct)
+        {
+            int totalRead = 0;
+            while (totalRead < buffer.Length)
+            {
+                int read = await stream.ReadAsync(buffer, totalRead, buffer.Length - totalRead, ct);
+                if (read == 0)
+                    throw new IOException("Ошибка во время чтения файла");
+
+                totalRead += read;
             }
         }
     }

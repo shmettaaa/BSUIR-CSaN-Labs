@@ -1,12 +1,39 @@
 ﻿<Window x:Class="CSaN_Lab2.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:CSaN_Lab2"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="Лаб 2 — TCP Чат" Height="340" Width="540"
+        WindowStartupLocation="CenterScreen"
+        Background="#F8F9FA" ResizeMode="NoResize">
+    <Grid Margin="40">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
+        <TextBlock Text="TCP Чат (лабораторная 2)"
+                   FontSize="24" FontWeight="SemiBold" Foreground="#1E40AF"
+                   HorizontalAlignment="Center" Margin="0,0,0,40"/>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Button Content="Запустить сервер" Width="220" Height="100"
+                    FontSize="18" Background="#3B82F6" Foreground="White"
+                    BorderThickness="0" Margin="15" Click="ServerButton_Click">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="12"/>
+                    </Style>
+                </Button.Resources>
+            </Button>
+
+            <Button Content="Подключиться (клиент)" Width="220" Height="100"
+                    FontSize="18" Background="#10B981" Foreground="White"
+                    BorderThickness="0" Margin="15" Click="ClientButton_Click">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="12"/>
+                    </Style>
+                </Button.Resources>
+            </Button>
+        </StackPanel>
     </Grid>
 </Window>
